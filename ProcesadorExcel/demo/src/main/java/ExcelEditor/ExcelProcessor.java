@@ -6,16 +6,15 @@ import java.util.*;
 
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 public class ExcelProcessor {
-    private static final String EXPORT_FOLDER = "ProcesadorExcel\\ArchivosModificados"; //Se debe modificar el PATH hacia el fólder donde se quieren los txts
-    private static final int EXPECTED_ROWS = 2977; //Valor a modificar acorde a lo que se esperaría acorde a los días del mes
-
+    private static final String EXPORT_FOLDER = "ProcesadorExcel\\ArchivosModificados"; // Se debe modificar el PATH hacia el fólder donde se quieren los txts
     private static final Map<String, String[]> invalidFilesMap = new HashMap<>();
 
     public static void main(String[] args) {
         // Ruta del directorio que contiene los archivos a modificar
-        File folder = new File("ProcesadorExcel\\ArchivosModificar"); //Se debe modificar el PATH hacia el fólder donde se tengan los libros de Excel
+        File folder = new File("ProcesadorExcel\\ArchivosModificar"); // Se debe modificar el PATH hacia el fólder donde se tengan los libros de Excel
 
         // Verificar si el directorio existe
         if (!folder.exists()) {
@@ -29,14 +28,14 @@ public class ExcelProcessor {
             exportFolder.mkdirs();
         }
 
-        // Filtrar y obtener solo archivos .xls en el directorio
+        // Filtrar y obtener solo archivos .xls y .xlsx en el directorio
         File[] listOfFiles = folder.listFiles(new FilenameFilter() {
             public boolean accept(File dir, String name) {
-                return name.toLowerCase().endsWith(".xls"); // Filtra archivos que terminan en .xls
+                return name.toLowerCase().endsWith(".xls") || name.toLowerCase().endsWith(".xlsx");
             }
         });
 
-        // Verificar si se encontraron archivos .xls
+        // Verificar si se encontraron archivos .xls o .xlsx
         if (listOfFiles != null && listOfFiles.length > 0) {
             System.out.println("-----------------------------------------------");
             System.out.println("Archivos encontrados en el directorio:");
@@ -46,21 +45,21 @@ public class ExcelProcessor {
                 if (file.isFile()) {
                     System.out.println("----------------------");
                     System.out.println("Procesando archivo: " + file.getName());
-                    processExcelFile(file); // Procesa cada archivo .xls encontrado
+                    processExcelFile(file); // Procesa cada archivo .xls o .xlsx encontrado
                 }
             }
 
             // Imprimir archivos y hojas con problemas
             printInvalidFilesInfo();
         } else {
-            System.out.println("No se encontraron archivos .xls en el directorio.");
+            System.out.println("No se encontraron archivos .xls o .xlsx en el directorio.");
         }
     }
 
     // Método para procesar cada archivo Excel
     private static void processExcelFile(File file) {
         try (FileInputStream fis = new FileInputStream(file);
-             Workbook workbook = new HSSFWorkbook(fis)) { // Abre el archivo Excel
+             Workbook workbook = file.getName().toLowerCase().endsWith(".xlsx") ? new XSSFWorkbook(fis) : new HSSFWorkbook(fis)) { // Abre el archivo Excel
 
             Sheet sheetToUse = null;
             int maxRowCount = 0;
@@ -78,7 +77,8 @@ public class ExcelProcessor {
             if (sheetToUse != null) {
                 System.out.println("Hoja seleccionada: " + sheetToUse.getSheetName());
                 System.out.println("----------------------");
-                String missingTime = formatSheet(sheetToUse); // Formatea la hoja seleccionada y valida
+                int expectedRows = calculateExpectedRows(sheetToUse); // Calcula la cantidad esperada de filas basado en el mes y año
+                String missingTime = formatSheet(sheetToUse, expectedRows); // Formatea la hoja seleccionada y valida
                 exportSheetAsTxt(sheetToUse, file); // Exporta la hoja a un archivo .txt
 
                 if (missingTime != null) {
@@ -86,12 +86,21 @@ public class ExcelProcessor {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace(); // Maneja excepciones de I/O
+            System.err.println("Error al procesar el archivo " + file.getName() + ": " + e.getMessage());
         }
     }
 
+    // Método para calcular el número esperado de filas basado en el mes y año
+    private static int calculateExpectedRows(Sheet sheet) {
+        Calendar calendar = Calendar.getInstance();
+        Date date = sheet.getRow(1).getCell(0).getDateCellValue();
+        calendar.setTime(date);
+        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+        return daysInMonth * 24 * 4 + 1; // Número de días * 24 horas * 4 (cada 15 minutos) + 1 fila de encabezado
+    }
+
     // Método para formatear la hoja de cálculo y validar filas
-    private static String formatSheet(Sheet sheet) {
+    private static String formatSheet(Sheet sheet, int expectedRows) {
         Workbook workbook = sheet.getWorkbook();
         CellStyle dateCellStyle = workbook.createCellStyle();
         CellStyle numberCellStyle = workbook.createCellStyle();
@@ -108,8 +117,8 @@ public class ExcelProcessor {
 
         int numColumns = headerRow.getPhysicalNumberOfCells();
 
-        if (sheet.getPhysicalNumberOfRows() != EXPECTED_ROWS) {
-            return findMissingTime(sheet);
+        if (sheet.getPhysicalNumberOfRows() != expectedRows) {
+            return findMissingTime(sheet, expectedRows);
         }
 
         for (int rowIndex = 1; rowIndex < sheet.getPhysicalNumberOfRows(); rowIndex++) {
@@ -121,7 +130,11 @@ public class ExcelProcessor {
                 if (cell == null) continue;
 
                 if (colIndex == 0) {
-                    cell.setCellStyle(dateCellStyle); // Aplica estilo de fecha a la primera columna
+                    if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+                        cell.setCellStyle(dateCellStyle); // Aplica estilo de fecha a la primera columna
+                    } else {
+                        return "Formato de fecha inválido en fila " + (rowIndex + 1);
+                    }
                 } else {
                     if (cell.getCellType() == CellType.NUMERIC) {
                         cell.setCellValue(Math.round(cell.getNumericCellValue() * 100.0) / 100.0); // Redondea a dos decimales
@@ -134,8 +147,8 @@ public class ExcelProcessor {
     }
 
     // Método para encontrar la hora faltante
-    private static String findMissingTime(Sheet sheet) {
-        Set<String> existingTimes = new HashSet<>();
+    private static String findMissingTime(Sheet sheet, int expectedRows) {
+        Set<String> existingTimes = new HashSet<String>();
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
 
         for (int rowIndex = 1; rowIndex < sheet.getPhysicalNumberOfRows(); rowIndex++) {
@@ -167,7 +180,7 @@ public class ExcelProcessor {
                 calendar.set(Calendar.SECOND, 0);
                 calendar.set(Calendar.MILLISECOND, 0);
 
-                for (int i = 0; i < EXPECTED_ROWS - 1; i++) {
+                for (int i = 0; i < expectedRows - 1; i++) {
                     String time = dateFormat.format(calendar.getTime());
                     if (!existingTimes.contains(time)) {
                         missingTime = time;
@@ -183,7 +196,7 @@ public class ExcelProcessor {
 
     // Método para exportar la hoja a un archivo .txt en el directorio de exportación
     private static void exportSheetAsTxt(Sheet sheet, File originalFile) {
-        File txtFile = new File(EXPORT_FOLDER, originalFile.getName().replace(".xls", ".txt"));
+        File txtFile = new File(EXPORT_FOLDER, originalFile.getName().replace(".xls", ".txt").replace(".xlsx", ".txt"));
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(txtFile))) {
             SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
@@ -210,7 +223,7 @@ public class ExcelProcessor {
                         continue; // Omite la columna "timestamp"
                     }
                     Cell cell = row.getCell(colIndex);
-                    if (colIndex > 0 && (colIndex != timestampColIndex + 1)) {
+                    if (colIndex > 0 && colIndex != timestampColIndex + 1) {
                         line.append("\t"); // Añade tabulación entre columnas
                     }
                     if (cell != null) {
@@ -246,7 +259,7 @@ public class ExcelProcessor {
             System.out.println("Archivo exportado como: " + txtFile.getName());
             System.out.println("-----------------------------------------------");
         } catch (IOException e) {
-            e.printStackTrace(); // Maneja excepciones de I/O
+            System.err.println("Error al exportar el archivo " + originalFile.getName() + " como TXT: " + e.getMessage());
         }
     }
 
