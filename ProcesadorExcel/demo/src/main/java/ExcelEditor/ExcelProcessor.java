@@ -8,14 +8,14 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 
 public class ExcelProcessor {
-    private static final String EXPORT_FOLDER = "ArchivosModificados";
-    private static final int EXPECTED_ROWS = 2977;
+    private static final String EXPORT_FOLDER = "ProcesadorExcel\\ArchivosModificados"; //Se debe modificar el PATH hacia el fólder donde se quieren los txts
+    private static final int EXPECTED_ROWS = 2977; //Valor a modificar acorde a lo que se esperaría acorde a los días del mes
 
     private static final Map<String, String[]> invalidFilesMap = new HashMap<>();
 
     public static void main(String[] args) {
         // Ruta del directorio que contiene los archivos a modificar
-        File folder = new File("ArchivosModificar");
+        File folder = new File("ProcesadorExcel\\ArchivosModificar"); //Se debe modificar el PATH hacia el fólder donde se tengan los libros de Excel
 
         // Verificar si el directorio existe
         if (!folder.exists()) {
