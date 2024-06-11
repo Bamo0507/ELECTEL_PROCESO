@@ -77,10 +77,15 @@ public class ExcelProcessor {
                 String txtxFileName = txtxFile.getName();
                 String txtFileName = txtxFileName.substring(0, txtxFileName.length() - 1); // Eliminar la última 'x'
                 File txtFile = new File(exportFolder, txtFileName);
-                
+                if (txtxFile.renameTo(txtFile)) {
+                    System.out.println("Archivo corregido: " + txtFile.getName());
+                } else {
+                    System.out.println("Error al corregir el archivo: " + txtxFile.getName());
+                }
             }
         }
     }
+
 
 
     // Método para procesar cada archivo Excel
