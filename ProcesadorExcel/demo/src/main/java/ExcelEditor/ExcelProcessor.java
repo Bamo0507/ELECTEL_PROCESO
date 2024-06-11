@@ -8,7 +8,7 @@ import java.util.*;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-///////////////////////////////////////////////////
+
 
 public class ExcelProcessor {
     private static final String EXPORT_FOLDER = "ProcesadorExcel\\ArchivosModificados"; // Se debe modificar el PATH hacia el fólder donde se quieren los txts
@@ -53,10 +53,39 @@ public class ExcelProcessor {
 
             // Imprimir archivos y hojas con problemas
             printInvalidFilesInfo();
+
+            // Corregir extensiones .txtx a .txt
+            fixTxtxExtensions();
+
         } else {
             System.out.println("No se encontraron archivos .xls o .xlsx en el directorio.");
         }
     }
+
+    // Corregir extensiones .txtx a .txt
+    private static void fixTxtxExtensions() {
+        File exportFolder = new File(EXPORT_FOLDER);
+        File[] txtxFiles = exportFolder.listFiles(new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.toLowerCase().endsWith(".txtx");
+            }
+        });
+
+        if (txtxFiles != null) {
+            for (File txtxFile : txtxFiles) {
+                String txtxFileName = txtxFile.getName();
+                String txtFileName = txtxFileName.substring(0, txtxFileName.length() - 1); // Eliminar la última 'x'
+                File txtFile = new File(exportFolder, txtFileName);
+                if (txtxFile.renameTo(txtFile)) {
+                    System.out.println("Archivo corregido: " + txtFile.getName());
+                } else {
+                    System.out.println("Error al corregir el archivo: " + txtxFile.getName());
+                }
+            }
+        }
+    }
+
 
     // Método para procesar cada archivo Excel
     private static void processExcelFile(File file) {
