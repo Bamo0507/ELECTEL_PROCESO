@@ -1,5 +1,6 @@
 package ExcelEditor;
 
+//Librerías importadas
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -7,6 +8,7 @@ import java.util.*;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+///////////////////////////////////////////////////
 
 public class ExcelProcessor {
     private static final String EXPORT_FOLDER = "ProcesadorExcel\\ArchivosModificados"; // Se debe modificar el PATH hacia el fólder donde se quieren los txts
