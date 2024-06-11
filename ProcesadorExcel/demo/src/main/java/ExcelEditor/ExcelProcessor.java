@@ -106,7 +106,7 @@ public class ExcelProcessor {
         CellStyle numberCellStyle = workbook.createCellStyle();
         DataFormat dataFormat = workbook.createDataFormat();
 
-        // Establece el formato de fecha
+        // Establece el formato de fecha para las dos primeras columnas
         dateCellStyle.setDataFormat(dataFormat.getFormat("dd-MM-yyyy HH:mm:ss"));
         // Establece el formato de número con dos decimales
         numberCellStyle.setDataFormat(dataFormat.getFormat("0.00"));
@@ -129,13 +129,11 @@ public class ExcelProcessor {
                 Cell cell = row.getCell(colIndex);
                 if (cell == null) continue;
 
-                if (colIndex == 0) {
+                if (colIndex == 0 || colIndex == 1) { // Formato de fecha solo para las dos primeras columnas
                     if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-                        cell.setCellStyle(dateCellStyle); // Aplica estilo de fecha a la primera columna
-                    } else {
-                        return "Formato de fecha inválido en fila " + (rowIndex + 1);
-                    }
-                } else {
+                        cell.setCellStyle(dateCellStyle); // Aplica estilo de fecha a las dos primeras columnas
+                    } 
+                } else { // Formato de número para el resto de las columnas
                     if (cell.getCellType() == CellType.NUMERIC) {
                         cell.setCellValue(Math.round(cell.getNumericCellValue() * 100.0) / 100.0); // Redondea a dos decimales
                     }
@@ -146,17 +144,19 @@ public class ExcelProcessor {
         return null;
     }
 
+
     // Método para encontrar la hora faltante
     private static String findMissingTime(Sheet sheet, int expectedRows) {
         Set<String> existingTimes = new HashSet<String>();
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
 
+        // Recorre las filas y almacena las fechas de la primera columna
         for (int rowIndex = 1; rowIndex < sheet.getPhysicalNumberOfRows(); rowIndex++) {
             Row row = sheet.getRow(rowIndex);
             if (row == null) continue;
 
-            Cell cell = row.getCell(0);
-            if (cell != null && cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+            Cell cell = row.getCell(0); // Analiza solo la primera columna
+            if (cell != null && cell.getCellType() == CellType.NUMERIC) {
                 existingTimes.add(dateFormat.format(cell.getDateCellValue()));
             }
         }
@@ -194,24 +194,17 @@ public class ExcelProcessor {
         return missingTime;
     }
 
+
+
     // Método para exportar la hoja a un archivo .txt en el directorio de exportación
     private static void exportSheetAsTxt(Sheet sheet, File originalFile) {
-        File txtFile = new File(EXPORT_FOLDER, originalFile.getName().replace(".xls", ".txt").replace(".xlsx", ".txt"));
+        String txtFileName = originalFile.getName().replace(".xls", ".txt").replace(".xlsx", ".txt");
+        File txtFile = new File(EXPORT_FOLDER, txtFileName);
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(txtFile))) {
             SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
             Row headerRow = sheet.getRow(0);
             if (headerRow == null) return;
-
-            // Encontrar la columna "timestamp"
-            int timestampColIndex = -1;
-            for (int colIndex = 0; colIndex < headerRow.getPhysicalNumberOfCells(); colIndex++) {
-                Cell cell = headerRow.getCell(colIndex);
-                if (cell != null && "timestamp".equalsIgnoreCase(cell.getStringCellValue().trim())) {
-                    timestampColIndex = colIndex;
-                    break;
-                }
-            }
 
             for (int rowIndex = 0; rowIndex < sheet.getPhysicalNumberOfRows(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
@@ -219,11 +212,8 @@ public class ExcelProcessor {
 
                 StringBuilder line = new StringBuilder();
                 for (int colIndex = 0; colIndex < row.getLastCellNum(); colIndex++) {
-                    if (colIndex == timestampColIndex) {
-                        continue; // Omite la columna "timestamp"
-                    }
                     Cell cell = row.getCell(colIndex);
-                    if (colIndex > 0 && colIndex != timestampColIndex + 1) {
+                    if (colIndex > 0) {
                         line.append("\t"); // Añade tabulación entre columnas
                     }
                     if (cell != null) {
